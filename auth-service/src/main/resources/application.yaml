@@ -1,3 +1,8 @@
 spring:
   application:
     name: auth-service
+
+# Configuracion JWT (la secret debe tener minimo 32 bytes para HS256)
+jwt:
+  secret: RecetaYa123456
+  expiration-ms: 86400000 # 24 horas

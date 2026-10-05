@@ -1,6 +1,5 @@
 package cl.duoc.authservice.service;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import cl.duoc.authservice.dto.AuthResponse;
 import cl.duoc.authservice.dto.LoginRequest;
 import cl.duoc.authservice.dto.RegisterRequest;
