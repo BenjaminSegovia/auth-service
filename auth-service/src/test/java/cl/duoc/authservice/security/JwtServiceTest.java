@@ -17,7 +17,8 @@ class JwtServiceTest {
     void setUp() throws Exception {
         jwtService = new JwtService();
         setField("secret", "RecetaYaClaveSecretaMuySeguraParaJWT2026!");
-        setField("expirationMs", 86400000L);
+        setField("expirationMs", 900000L);
+        setField("refreshExpirationMs", 604800000L);
     }
 
     private void setField(String name, Object value) throws Exception {
@@ -27,13 +28,24 @@ class JwtServiceTest {
     }
 
     @Test
-    void generarYLeerToken() {
+    void generarYLeerTokenDeAcceso() {
         String token = jwtService.generateToken("benja", "ADMIN");
 
         assertTrue(token.split("\\.").length == 3, "debe tener header.payload.signature");
         assertEquals("benja", jwtService.extractUsername(token));
-        assertTrue(jwtService.isTokenValid(token, "benja"));
+        assertEquals(JwtService.TOKEN_TYPE_ACCESS, jwtService.extractTokenType(token));
+        assertTrue(jwtService.isTokenValid(token, "benja", JwtService.TOKEN_TYPE_ACCESS));
         assertFalse(jwtService.isTokenValid(token, "otro-usuario"));
+    }
+
+    @Test
+    void elRefreshTokenNoSirveComoAccessToken() {
+        String refresh = jwtService.generateRefreshToken("benja", "USER");
+
+        assertEquals(JwtService.TOKEN_TYPE_REFRESH, jwtService.extractTokenType(refresh));
+        assertTrue(jwtService.isTokenValid(refresh, "benja", JwtService.TOKEN_TYPE_REFRESH));
+        // Un refresh token NO debe autenticar llamadas a la API
+        assertFalse(jwtService.isTokenValid(refresh, "benja", JwtService.TOKEN_TYPE_ACCESS));
     }
 
     @Test
@@ -42,5 +54,6 @@ class JwtServiceTest {
         String manipulado = token.substring(0, token.length() - 2) + "xx";
 
         assertFalse(jwtService.isTokenValid(manipulado, "benja"));
+        assertFalse(jwtService.isTokenValid(manipulado, "benja", JwtService.TOKEN_TYPE_ACCESS));
     }
 }
