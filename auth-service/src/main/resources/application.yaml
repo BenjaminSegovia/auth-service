@@ -17,4 +17,5 @@ spring:
 # Configuración JWT (Clave de mínimo 32 caracteres para HS256)
 jwt:
   secret: RecetaYaClaveSecretaMuySeguraParaJWT2026!
-  expiration-ms: 86400000 # 24 horas
+  expiration-ms: 900000          # access token: 15 minutos
+  refresh-expiration-ms: 604800000 # refresh token: 7 días
