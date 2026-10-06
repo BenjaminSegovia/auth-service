@@ -123,7 +123,9 @@ public class AuthService {
         usuarioRepository.save(usuario);
 
         return UserResponse.builder()
+                .id(usuario.getId())
                 .username(usuario.getUsername())
+                .nombreCompleto(usuario.getNombreCompleto())
                 .role(usuario.getRole().name())
                 .build();
     }
