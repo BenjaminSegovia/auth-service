@@ -1,11 +1,17 @@
 spring:
   application:
     name: auth-service
+
+  # Conexión a PostgreSQL.
+  # Cada valor usa el formato ${VARIABLE_DE_ENTORNO:valor_por_defecto},
+  # así el servicio corre en local sin tocar el archivo y en producción
+  # solo se define la variable (nunca se commitean credenciales reales).
   datasource:
-    url: jdbc:postgresql://localhost:5432/auth_db
-    username: postgres
-    password: postgrespassword
+    url: "${DB_URL:jdbc:postgresql://localhost:5432/auth_db}"
+    username: "${DB_USERNAME:postgres}"
+    password: "${DB_PASSWORD:postgrespassword}"
     driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -14,11 +20,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-# Configuración JWT (Clave de mínimo 32 caracteres para HS256)
+# Configuración JWT (la clave debe tener mínimo 32 caracteres para HS256)
 jwt:
-  secret: RecetaYaClaveSecretaMuySeguraParaJWT2026!
-  expiration-ms: 900000          # access token: 15 minutos
-  refresh-expiration-ms: 604800000 # refresh token: 7 días
+  secret: "${JWT_SECRET:RecetaYaClaveSecretaMuySeguraParaJWT2026!}"
+  expiration-ms: "${JWT_EXPIRATION_MS:900000}"             # access token: 15 minutos
+  refresh-expiration-ms: "${JWT_REFRESH_EXPIRATION_MS:604800000}" # refresh token: 7 días
 
 # Actuator: qué endpoints de operación se publican por HTTP
 # (/actuator/health está permitido sin token en SecurityConfig)
