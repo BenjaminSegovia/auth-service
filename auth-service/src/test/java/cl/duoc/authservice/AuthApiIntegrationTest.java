@@ -138,13 +138,15 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.error").value("Forbidden"));
 
-        // Con token de ADMIN -> 200 y rol aplicado
+        // Con token de ADMIN -> 200 y rol aplicado (respuesta completa, sin campos en null)
         mvc.perform(put("/auth/users/juan/role")
                         .header("Authorization", bearer(tokenAdmin))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"MEDICO\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.username").value("juan"))
+                .andExpect(jsonPath("$.nombreCompleto").value("Nombre juan"))
                 .andExpect(jsonPath("$.role").value("MEDICO"));
 
         // Usuario inexistente -> 404 con la misma estructura
