@@ -1,0 +1,465 @@
+{
+  "info": {
+    "name": "RecetaYa - auth-service",
+    "description": "Colección de pruebas del microservicio de autenticación (auth-service).\n\n**Cómo usarla**\n1. Asegúrate de que el servicio esté corriendo:\n   - local: `./mvnw spring-boot:run` → http://localhost:8080\n   - Docker: `docker compose up -d --build` → http://localhost:8081\n   y cambia la variable `baseUrl` si usas Docker.\n2. Ejecuta primero la carpeta **Casos exitosos** y después **Casos de error** (las respuestas guardan `token`, `refreshToken` y `username` automáticamente).\n\n**Variables de colección**\n- `baseUrl`: URL base del servicio (8080 en local, 8081 en Docker).\n- `adminUsername` / `adminPassword`: usuario ADMIN de la demo. Si vacías la base de datos, el **primer registro** queda como ADMIN (bootstrap): regristra uno nuevo y copia esas credenciales aquí.\n- `token`, `refreshToken`, `username`, `tokenUser`: se rellenan solos en los tests de respuesta.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "adminUsername", "value": "demoPaso8", "type": "string" },
+    { "key": "adminPassword", "value": "secret1234", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "username", "value": "", "type": "string" },
+    { "key": "tokenUser", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Casos exitosos",
+      "description": "Recorrido completo del CRUD. Se guardan los tokens y el username para el resto de la colección.",
+      "item": [
+        {
+          "name": "1. login ADMIN (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('devuelve los tokens', () => { pm.expect(r.token).to.be.ok; pm.expect(r.refreshToken).to.be.ok; });",
+                  "pm.collectionVariables.set('adminToken', r.token);",
+                  "pm.collectionVariables.set('usernameAdmin', r.username);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Inicia sesión con el ADMIN de la demo y guarda su token en `adminToken`."
+          }
+        },
+        {
+          "name": "2. register (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('devuelve username y rol', () => { pm.expect(r.username).to.be.ok; pm.expect(r.role).to.be.ok; });",
+                  "pm.collectionVariables.set('token', r.token);",
+                  "pm.collectionVariables.set('refreshToken', r.refreshToken);",
+                  "pm.collectionVariables.set('username', r.username);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"user{{$timestamp}}\",\n  \"password\": \"secret1234\",\n  \"nombreCompleto\": \"Usuario Postman\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Crea un usuario nuevo (el timestamp garantiza username único). Guarda `token`, `refreshToken` y `username`."
+          }
+        },
+        {
+          "name": "3. login (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('devuelve el rol', () => pm.expect(r.role).to.be.a('string'));",
+                  "pm.collectionVariables.set('token', r.token);",
+                  "pm.collectionVariables.set('refreshToken', r.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"secret1234\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Inicia sesión con el usuario recién registrado."
+          }
+        },
+        {
+          "name": "4. refresh (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('entrega un par nuevo', () => { pm.expect(r.token).to.be.ok; pm.expect(r.refreshToken).to.be.ok; });",
+                  "pm.collectionVariables.set('token', r.token);",
+                  "pm.collectionVariables.set('refreshToken', r.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] },
+            "description": "Intercambia el refresh token por un nuevo par de tokens."
+          }
+        },
+        {
+          "name": "5. me (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('devuelve el perfil completo', () => {",
+                  "  pm.expect(r.id).to.not.be.null;",
+                  "  pm.expect(r.username).to.eql(pm.collectionVariables.get('username'));",
+                  "  pm.expect(r.nombreCompleto).to.not.be.null;",
+                  "  pm.expect(r.role).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "description": "Perfil del usuario autenticado: id, username, nombreCompleto y role."
+          }
+        },
+        {
+          "name": "6. change-password (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo de respuesta', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"secret1234\",\n  \"newPassword\": \"nuevaClave{{$timestamp}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/password", "host": ["{{baseUrl}}"], "path": ["auth", "password"] },
+            "description": "Cambia la contraseña del usuario autenticado. Devuelve 204 sin contenido."
+          }
+        },
+        {
+          "name": "7. cambio de rol (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('rol aplicado', () => pm.expect(r.role).to.eql('MEDICO'));",
+                  "pm.test('respuesta completa (sin campos en null)', () => {",
+                  "  pm.expect(r.id).to.not.be.null;",
+                  "  pm.expect(r.username).to.not.be.null;",
+                  "  pm.expect(r.nombreCompleto).to.not.be.null;",
+                  "  pm.expect(r.role).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"MEDICO\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{username}}/role", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{username}}", "role"] },
+            "description": "El ADMIN cambia el rol del usuario creado a MEDICO."
+          }
+        },
+        {
+          "name": "8. listar usuarios (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('es una lista de usuarios', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('incluye al usuario creado', () => {",
+                  "  const u = pm.response.json().find(x => x.username === pm.collectionVariables.get('username'));",
+                  "  pm.expect(u).to.not.be.undefined;",
+                  "  pm.expect(u.role).to.eql('MEDICO');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/users", "host": ["{{baseUrl}}"], "path": ["auth", "users"] },
+            "description": "Listado completo de usuarios (solo ADMIN)."
+          }
+        },
+        {
+          "name": "9. eliminar usuario (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/users/{{username}}", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{username}}"] },
+            "description": "El ADMIN elimina al usuario creado. 204 sin contenido."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Casos de error",
+      "description": "Códigos de error que exige la pauta: 400, 401, 403, 404 y 409.",
+      "item": [
+        {
+          "name": "400 - validación de datos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "const r = pm.response.json();",
+                  "pm.test('estructura uniforme de error', () => {",
+                  "  pm.expect(r.status).to.eql(400);",
+                  "  pm.expect(r.error).to.eql('Bad Request');",
+                  "  pm.expect(r.path).to.eql('/auth/register');",
+                  "  pm.expect(r.fields.password).to.not.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"usuarioValido\",\n  \"password\": \"123\",\n  \"nombreCompleto\": \"Usuario Corto\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Contraseña de 3 caracteres: viola el rango de 8 a 72 y responde 400 con el detalle campo a campo."
+          }
+        },
+        {
+          "name": "401 - sin token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "const r = pm.response.json();",
+                  "pm.test('estructura uniforme de error', () => {",
+                  "  pm.expect(r.status).to.eql(401);",
+                  "  pm.expect(r.error).to.eql('Unauthorized');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "description": "Pide el perfil sin header Authorization: el entry point de Security responde 401 en JSON."
+          }
+        },
+        {
+          "name": "401 - credenciales incorrectas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "const r = pm.response.json();",
+                  "pm.test('mensaje genérico (no revela si existe el usuario)', () => {",
+                  "  pm.expect(r.message).to.eql('Usuario o contraseña incorrectos');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"claveQueNoEs\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Login con contraseña equivocada: siempre responde el mismo 401."
+          }
+        },
+        {
+          "name": "preparación - registrar usuario normal (201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('tokenUser', pm.response.json().token);",
+                  "pm.collectionVariables.set('usernameUser', pm.response.json().username);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"normal{{$timestamp}}\",\n  \"password\": \"secret1234\",\n  \"nombreCompleto\": \"Usuario Normal\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Solo preparación: crea un usuario NO admin para poder probar el 403 de la petición siguiente."
+          }
+        },
+        {
+          "name": "403 - USER intenta una acción de ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "const r = pm.response.json();",
+                  "pm.test('estructura uniforme de error', () => {",
+                  "  pm.expect(r.status).to.eql(403);",
+                  "  pm.expect(r.error).to.eql('Forbidden');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenUser}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/users", "host": ["{{baseUrl}}"], "path": ["auth", "users"] },
+            "description": "Un usuario sin rol ADMIN pide el listado: AccessDeniedHandler responde 403 en JSON."
+          }
+        },
+        {
+          "name": "404 - usuario inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "const r = pm.response.json();",
+                  "pm.test('estructura uniforme de error', () => {",
+                  "  pm.expect(r.status).to.eql(404);",
+                  "  pm.expect(r.message).to.contain('no existe');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/users/usuarioQueNoExiste", "host": ["{{baseUrl}}"], "path": ["auth", "users", "usuarioQueNoExiste"] },
+            "description": "El ADMIN consulta un username que no está en la base de datos."
+          }
+        },
+        {
+          "name": "409 - username duplicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const r = pm.response.json();",
+                  "pm.test('estructura uniforme de error', () => {",
+                  "  pm.expect(r.status).to.eql(409);",
+                  "  pm.expect(r.message).to.contain('ya está en uso');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"secret1234\",\n  \"nombreCompleto\": \"Otro Usuario\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Intenta registrar el username del ADMIN, que ya existe: 409 Conflict."
+          }
+        }
+      ]
+    }
+  ]
+}
