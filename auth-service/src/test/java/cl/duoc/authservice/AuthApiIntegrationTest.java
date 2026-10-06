@@ -13,6 +13,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -138,13 +140,15 @@ class AuthApiIntegrationTest {
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.error").value("Forbidden"));
 
-        // Con token de ADMIN -> 200 y rol aplicado
+        // Con token de ADMIN -> 200 y rol aplicado (respuesta completa, sin campos en null)
         mvc.perform(put("/auth/users/juan/role")
                         .header("Authorization", bearer(tokenAdmin))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"MEDICO\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.username").value("juan"))
+                .andExpect(jsonPath("$.nombreCompleto").value("Nombre juan"))
                 .andExpect(jsonPath("$.role").value("MEDICO"));
 
         // Usuario inexistente -> 404 con la misma estructura
@@ -240,5 +244,142 @@ class AuthApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"noExiste\",\"password\":\"secret1234\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ------------------------------------------------------------------- CRUD
+
+    @Test
+    void meDevuelveElPerfilDelUsuarioAutenticado() throws Exception {
+        JsonNode registrado = registrar("perfil1", "secret1234");
+        String token = registrado.get("token").asText();
+
+        // 200 con los cuatro campos del perfil
+        mvc.perform(get("/auth/me").header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.username").value("perfil1"))
+                .andExpect(jsonPath("$.nombreCompleto").value("Nombre perfil1"))
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+
+        // 401 sin token
+        mvc.perform(get("/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void soloElAdminPuedeListarYConsultarUsuarios() throws Exception {
+        JsonNode admin = registrar("admin1", "secret1234");
+        JsonNode juan = registrar("juan", "secret1234");
+        String tokenAdmin = admin.get("token").asText();
+        String tokenJuan = juan.get("token").asText();
+
+        // 401 sin token
+        mvc.perform(get("/auth/users"))
+                .andExpect(status().isUnauthorized());
+
+        // 403 con token de USER
+        mvc.perform(get("/auth/users").header("Authorization", bearer(tokenJuan)))
+                .andExpect(status().isForbidden());
+
+        // 200 con ADMIN: lista los dos usuarios
+        mvc.perform(get("/auth/users").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        // 200 consulta individual, con el perfil completo
+        mvc.perform(get("/auth/users/juan").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.username").value("juan"))
+                .andExpect(jsonPath("$.nombreCompleto").value("Nombre juan"))
+                .andExpect(jsonPath("$.role").value("USER"));
+
+        // 404 usuario inexistente
+        mvc.perform(get("/auth/users/fantasma").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void elAdminEliminaUsuariosPeroNoSiMismo() throws Exception {
+        JsonNode admin = registrar("admin1", "secret1234");
+        JsonNode juan = registrar("juan", "secret1234");
+        String tokenAdmin = admin.get("token").asText();
+        String tokenJuan = juan.get("token").asText();
+
+        // 403: un USER no puede eliminar
+        mvc.perform(delete("/auth/users/juan").header("Authorization", bearer(tokenJuan)))
+                .andExpect(status().isForbidden());
+
+        // 204: el ADMIN elimina a juan
+        mvc.perform(delete("/auth/users/juan").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isNoContent());
+
+        // 404: ya no existe
+        mvc.perform(delete("/auth/users/juan").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isNotFound());
+
+        // 400: no puede eliminarse a sí mismo
+        mvc.perform(delete("/auth/users/admin1").header("Authorization", bearer(tokenAdmin)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "No puedes eliminar la cuenta con la que estás operando"));
+    }
+
+    @Test
+    void sePuedeCambiarLaPasswordYLaAntiguaDejaDeServir() throws Exception {
+        JsonNode registrado = registrar("cambiador", "secret1234");
+        String token = registrado.get("token").asText();
+        String cambio = "{\"currentPassword\":\"%s\",\"newPassword\":\"%s\"}";
+
+        // 401 sin token
+        mvc.perform(put("/auth/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(cambio, "secret1234", "nuevaClave123")))
+                .andExpect(status().isUnauthorized());
+
+        // 401 si la contraseña actual no coincide
+        mvc.perform(put("/auth/password")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(cambio, "claveIncorrecta", "nuevaClave123")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("La contraseña actual es incorrecta"));
+
+        // 400 si la nueva es igual a la actual
+        mvc.perform(put("/auth/password")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(cambio, "secret1234", "secret1234")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "La nueva contraseña debe ser distinta de la actual"));
+
+        // 400 con detalle campo a campo si la nueva no cumple las reglas
+        mvc.perform(put("/auth/password")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(cambio, "secret1234", "corta")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.newPassword").isNotEmpty());
+
+        // 204 si todo está bien
+        mvc.perform(put("/auth/password")
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(cambio, "secret1234", "nuevaClave123")))
+                .andExpect(status().isNoContent());
+
+        // la contraseña vieja ya no sirve (401) y la nueva sí (200)
+        mvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"cambiador\",\"password\":\"secret1234\"}"))
+                .andExpect(status().isUnauthorized());
+
+        mvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"cambiador\",\"password\":\"nuevaClave123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty());
     }
 }

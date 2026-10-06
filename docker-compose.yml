@@ -1,0 +1,57 @@
+networks:
+  recetaya-net:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  receta_db_data:
+  inventory_db_data:
+  dispensing_db_data:
+
+services:
+  # ==========================================
+  # INFRAESTRUCTURA: BASES DE DATOS POSTGRES
+  # ==========================================
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db-v2
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - recetaya-net
+    healthcheck:
+      # $$ evita la interpolación de Compose: el shell del contenedor lee POSTGRES_USER
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # MICROSERVICIOS SPRING BOOT
+  # ==========================================
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service-v2
+    ports:
+      - "8081:8080"   # puerto 8081 de tu PC -> 8080 del contenedor
+    environment:
+      # Dentro de la red de compose, la BD se resuelve por el nombre del servicio (auth-db)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      JWT_SECRET: "${JWT_SECRET:-RecetaYaClaveSecretaMuySeguraParaJWT2026!}"
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-900000}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - recetaya-net
