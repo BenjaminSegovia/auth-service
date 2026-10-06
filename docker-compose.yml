@@ -1,0 +1,55 @@
+
+networks:
+  recetaya-net:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  receta_db_data:
+  inventory_db_data:
+  dispensing_db_data:
+
+services:
+  # ==========================================
+  # INFRAESTRUCTURA: BASES DE DATOS POSTGRES
+  # ==========================================
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db-v2   # <--- Nombre actualizado
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - recetaya-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # MICROSERVICIOS SPRING BOOT
+  # ==========================================
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service-v2
+    ports:
+      - "8081:8080"   # <--- Mapea el puerto 8081 de tu PC al 8080 del contenedor
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db-v2:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgrespassword
+      JWT_SECRET: RecetaYaClaveSecretaMuySeguraParaJWT2026!
+      JWT_EXPIRATION_MS: 900000
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - recetaya-net
