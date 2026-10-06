@@ -18,8 +18,8 @@ services:
     container_name: auth-db-v2   # <--- Nombre actualizado
     environment:
       POSTGRES_DB: auth_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_USER: ${DB_USERNAME:postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:postgrespassword}
     ports:
       - "5433:5432"
     volumes:
@@ -43,11 +43,13 @@ services:
     ports:
       - "8081:8080"   # <--- Mapea el puerto 8081 de tu PC al 8080 del contenedor
     environment:
+      # URL fija: dentro de la red de compose el servicio se llama auth-db-v2
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db-v2:5432/auth_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgrespassword
-      JWT_SECRET: RecetaYaClaveSecretaMuySeguraParaJWT2026!
-      JWT_EXPIRATION_MS: 900000
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:postgrespassword}
+      JWT_SECRET: ${JWT_SECRET:RecetaYaClaveSecretaMuySeguraParaJWT2026!}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:900000}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     depends_on:
       auth-db:
         condition: service_healthy
