@@ -16,9 +16,11 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+    # No se usa sesión JPA fuera de la transacción (el servicio no tiene
+    # relaciones lazy): evita el warning "open-in-view is enabled by default".
+    open-in-view: false
+    # El dialecto (PostgreSQL/H2) lo detecta Hibernate solo; declararlo a mano
+    # provoca el warning HHH90000025.
 
 # Configuración JWT (la clave debe tener mínimo 32 caracteres para HS256)
 jwt:
