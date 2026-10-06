@@ -1,10 +1,12 @@
 package cl.duoc.authservice.service;
 
 import cl.duoc.authservice.dto.AuthResponse;
+import cl.duoc.authservice.dto.ChangePasswordRequest;
 import cl.duoc.authservice.dto.LoginRequest;
 import cl.duoc.authservice.dto.RegisterRequest;
 import cl.duoc.authservice.dto.UserResponse;
 import cl.duoc.authservice.exception.InvalidCredentialsException;
+import cl.duoc.authservice.exception.OperacionInvalidaException;
 import cl.duoc.authservice.exception.UsernameAlreadyExistsException;
 import cl.duoc.authservice.exception.UsuarioNotFoundException;
 import cl.duoc.authservice.model.Role;
@@ -13,6 +15,9 @@ import cl.duoc.authservice.repository.UsuarioRepository;
 import cl.duoc.authservice.security.JwtService;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -122,6 +127,101 @@ public class AuthService {
         usuario.setRole(role);
         usuarioRepository.save(usuario);
 
+        return toUserResponse(usuario);
+    }
+
+    /**
+     * Devuelve el perfil del usuario que hizo la petición (su username viene en el JWT).
+     *
+     * @param username usuario autenticado.
+     * @return id, username, nombre completo y rol vigente.
+     * @throws UsuarioNotFoundException si el usuario ya no existe en la base.
+     */
+    public UserResponse me(String username) {
+        return toUserResponse(buscar(username));
+    }
+
+    /**
+     * Lista todos los usuarios registrados, con su rol vigente.
+     * Solo lo llama un ADMIN (lo garantiza SecurityConfig).
+     *
+     * @return lista con todos los usuarios.
+     */
+    public List<UserResponse> listarUsuarios() {
+        return usuarioRepository.findAll().stream()
+                .map(this::toUserResponse)
+                .toList();
+    }
+
+    /**
+     * Consulta un usuario por su username.
+     *
+     * @param username usuario a consultar.
+     * @return id, username, nombre completo y rol vigente.
+     * @throws UsuarioNotFoundException si no existe.
+     */
+    public UserResponse obtenerUsuario(String username) {
+        return toUserResponse(buscar(username));
+    }
+
+    /**
+     * Elimina un usuario de la base de datos.
+     *
+     * No permite eliminarse a uno mismo: dejaría al sistema sin la cuenta
+     * que está operando y, si es el último ADMIN, sin administradores.
+     *
+     * @param username usuario a eliminar.
+     * @param usuarioActual username de quien ejecuta la operación.
+     * @throws OperacionInvalidaException si intenta eliminarse a sí mismo.
+     * @throws UsuarioNotFoundException si el usuario a eliminar no existe.
+     */
+    public void eliminarUsuario(String username, String usuarioActual) {
+        if (username.equals(usuarioActual)) {
+            throw new OperacionInvalidaException("No puedes eliminar la cuenta con la que estás operando");
+        }
+
+        usuarioRepository.delete(buscar(username));
+    }
+
+    /**
+     * Cambia la contraseña del usuario autenticado.
+     *
+     * Se exige la contraseña actual para comprobar la identidad y la nueva
+     * debe ser distinta de la que ya está en uso. Se guarda hasheada con BCrypt.
+     *
+     * @param username usuario autenticado.
+     * @param request contraseña actual y nueva.
+     * @throws InvalidCredentialsException si la contraseña actual no coincide.
+     * @throws OperacionInvalidaException si la nueva es igual a la actual.
+     */
+    public void cambiarPassword(String username, ChangePasswordRequest request) {
+        Usuario usuario = buscar(username);
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), usuario.getPassword())) {
+            throw new InvalidCredentialsException("La contraseña actual es incorrecta");
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), usuario.getPassword())) {
+            throw new OperacionInvalidaException("La nueva contraseña debe ser distinta de la actual");
+        }
+
+        usuario.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Busca un usuario por username o lanza la excepción 404.
+     */
+    private Usuario buscar(String username) {
+        return usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new UsuarioNotFoundException("El usuario '" + username + "' no existe"));
+    }
+
+    /**
+     * Convierte la entidad en la respuesta estándar de usuario,
+     * rellenando siempre los cuatro campos.
+     */
+    private UserResponse toUserResponse(Usuario usuario) {
         return UserResponse.builder()
                 .id(usuario.getId())
                 .username(usuario.getUsername())
