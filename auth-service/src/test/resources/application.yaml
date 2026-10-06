@@ -15,3 +15,10 @@ jwt:
   secret: RecetaYaClaveSecretaMuySeguraParaJWT2026!
   expiration-ms: 900000            # access token: 15 minutos
   refresh-expiration-ms: 604800000 # refresh token: 7 días
+
+# Mismos endpoints públicos que en producción (health e info)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
