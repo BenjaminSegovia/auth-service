@@ -19,3 +19,11 @@ jwt:
   secret: RecetaYaClaveSecretaMuySeguraParaJWT2026!
   expiration-ms: 900000          # access token: 15 minutos
   refresh-expiration-ms: 604800000 # refresh token: 7 días
+
+# Actuator: qué endpoints de operación se publican por HTTP
+# (/actuator/health está permitido sin token en SecurityConfig)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

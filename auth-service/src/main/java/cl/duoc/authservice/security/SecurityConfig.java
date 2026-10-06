@@ -42,6 +42,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/refresh").permitAll()
+                        // Documentacion OpenAPI y salud del servicio: accesibles sin token
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Solo un ADMIN puede cambiar roles de otros usuarios
                         .requestMatchers(HttpMethod.PUT, "/auth/users/*/role").hasRole("ADMIN")
                         // Todo lo demás requiere un JWT de acceso válido
