@@ -34,3 +34,18 @@ build/
 # ============================================
 .DS_Store
 Thumbs.db
+
+# ============================================
+# Microservicios con PROPIO repositorio
+# Se clonan localmente aquí, pero NUNCA se trackean
+# en este repo (evita volver a meterlos por accidente):
+#   receta-service       -> github.com/BenjaminSegovia/receta-service
+#   inventory-service    -> github.com/BenjaminSegovia/inventory-service
+#   dispensing-service   -> github.com/BenjaminSegovia/dispensing-service
+#   notification-service -> github.com/BenjaminSegovia/notification-service
+# (auth-service SÍ vive en este repo)
+# ============================================
+/receta-service/
+/inventory-service/
+/dispensing-service/
+/notification-service/
