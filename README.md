@@ -1,175 +1,143 @@
 # RecetaYa
 
-Monorepo de microservicios Spring Boot. Este documento funciona como **contexto vivo del proyecto**:
-se actualiza cada vez que avanza algo (nuevos endpoints, bugs corregidos, infraestructura, etc.).
+Proyecto académico de **microservicios** para la gestión de recetas médicas y despacho de
+medicamentos. Cada microservicio vive en **su propio repositorio de GitHub**; este repo
+(`auth-service`) contiene el microservicio de autenticación y los archivos compartidos del
+proyecto (documentación general, Docker Compose y variables de entorno).
 
-> Última actualización: 2026-10-06 — rama `develop` (`267b445`)
-> Documentación completa del microservicio: [`auth-service/README.md`](auth-service/README.md)
-
----
-
-## 1. Qué es
-
-Repositorio `C:\RecetaYa` con microservicios Spring Boot (**Java 21**, **Maven**, **Spring Boot 3.2.5**):
-
-| Servicio | Descripción | Estado |
-|---|---|---|
-| `auth-service/` | Autenticación y JWT | ✅ Funcionando, **24 tests en verde**, documentado |
-| `receta-service/` | Segundo microservicio | **Sin trackear en git** (irá a su propio repo) |
-
-**Archivos en la raíz:** `README.md`, `docker-compose.yml`, `.env.example`, `.gitignore`.
-
-**Estado de git:**
-- Rama activa `develop` → **43 commits**, sincronizada con `origin/develop`.
-- Cada tarea de la rúbrica se hizo en su rama `feature/*` y se fusionó con **`git merge --no-ff`**.
-- `main` recibe el merge final de `develop` con `--no-ff` (ítem **IE9**).
-- Repo remoto: `https://github.com/BenjaminSegovia/auth-service.git` (un repo por microservicio).
+> Documentación completa de este microservicio: [`auth-service/README.md`](auth-service/README.md)
 
 ---
 
-## 2. Stack y dependencias (`auth-service/pom.xml`)
+## 1. Stack tecnológico
 
-- `spring-boot-starter-web`, `data-jpa`, `security`, `validation`
-- `postgresql` (runtime), `h2` (solo tests, hoy con `<scope>runtime</scope>`)
-- `lombok`
-- `jjwt 0.12.6` (api / impl / jackson) → `${jjwt.version}`
-- `spring-boot-starter-test` + `spring-security-test`
-- `spring-boot-starter-actuator` y `springdoc-openapi-starter-webmvc-ui` **2.3.0** → `${springdoc.version}`
-  (2.5.x exige Boot 3.3+; con 3.2.5 se usa 2.3.0)
-- `<properties>` con `java.version` (21), `jjwt.version` y `springdoc.version`, y comentarios de sección.
-
----
-
-## 3. Estructura (`auth-service/src/main/java/cl/duoc/authservice/`)
-
-- `config/` → `OpenApiConfig` (título/descripción/versionado del documento OpenAPI)
-- `controller/` → `AuthController` (10 endpoints, **sin lógica de negocio**, con `@Tag`/`@Operation`/`@ApiResponse`)
-- `service/` → `AuthService` (toda la lógica de negocio)
-- `dto/` → `AuthResponse`, `LoginRequest`, `RegisterRequest`, `RefreshRequest`, `RoleUpdateRequest`,
-  `UserResponse` (`id`, `username`, `nombreCompleto`, `role`), `ErrorResponse`,
-  `ChangePasswordRequest` (usado por `PUT /auth/password`)
-- `model/` → `Usuario` (@Entity con Javadoc y mapeo completo), `Role` (`USER`, `MEDICO`, `FARMACEUTICO`, `ADMIN`)
-- `repository/` → `UsuarioRepository`
-- `security/` → `SecurityConfig`, `JwtService`, `JwtAuthenticationFilter`, `UsuarioUserDetailsService`,
-  `RestAuthenticationEntryPoint` (401 JSON), `RestAccessDeniedHandler` (403 JSON)
-- `exception/` → `GlobalExceptionHandler` (12 `@ExceptionHandler`) + `UsernameAlreadyExistsException` (409),
-  `InvalidCredentialsException` (401), `UsuarioNotFoundException` (404),
-  `OperacionInvalidaException` (400)
+| Capa | Tecnología |
+|---|---|
+| Lenguaje | **Java 21** |
+| Build | **Maven** (wrapper `mvnw` incluido) |
+| Framework | **Spring Boot** (Web, Data JPA, Security, Validation, Actuator) |
+| Persistencia | **PostgreSQL 16** (`ddl-auto: update`, `open-in-view: false`) |
+| Seguridad | **JWT HS256** con access (15 min) y refresh token (7 días) |
+| API docs | **springdoc-openapi** (Swagger UI) |
+| Tests | JUnit 5 + Spring Security Test + **H2** (no necesitan base de datos) |
+| Infraestructura | **Docker** / **docker-compose** con red y volúmenes persistentes |
 
 ---
 
-## 4. API
+## 2. Servicios (un repositorio por microservicio)
 
-| Método | Ruta | Acceso | Éxito | Descripción |
-|---|---|---|---|---|
-| POST | `/auth/register` | público | **201** | Crea usuario. **El rol lo asigna el servidor**: primer usuario = ADMIN (bootstrap), resto = USER. Password 8–72 chars con BCrypt. |
-| POST | `/auth/login` | público | **200** | Devuelve access + refresh token, `username` y `role`. |
-| POST | `/auth/refresh` | público | **200** | Rota el par de tokens (exige claim `type=refresh`). |
-| POST | `/auth/logout` | JWT | **204** | Stateless: el cliente descarta sus tokens. |
-| PUT | `/auth/password` | JWT | **204** | Cambia la contraseña del usuario autenticado. |
-| GET | `/auth/me` | JWT | **200** | Perfil completo: `id`, `username`, `nombreCompleto`, `role`. |
-| PUT | `/auth/users/{username}/role` | solo ADMIN | **200** | Cambia el rol de un usuario. |
-| GET | `/auth/users` | solo ADMIN | **200** | Lista todos los usuarios. |
-| GET | `/auth/users/{username}` | solo ADMIN | **200** | Consulta un usuario por username. |
-| DELETE | `/auth/users/{username}` | solo ADMIN | **204** | Elimina un usuario (400 si un ADMIN se elimina a sí mismo). |
+| Servicio | Responsabilidad | Repositorio | Estado |
+|---|---|---|---|
+| `auth-service` | Registro, login, roles y administración de usuarios (JWT) | [BenjaminSegovia/auth-service](https://github.com/BenjaminSegovia/auth-service) | ✅ Completo: 10 endpoints, **24 tests en verde**, Dockerfile y README propio |
+| `receta-service` | Gestión de recetas médicas | [BenjaminSegovia/receta-service](https://github.com/BenjaminSegovia/receta-service) | 🔨 Estructura base + datasource con `${VAR:default}` y tests sobre H2 |
+| `inventory-service` | Inventario de medicamentos | [BenjaminSegovia/inventory-service](https://github.com/BenjaminSegovia/inventory-service) | 🔨 Estructura base + datasource con `${VAR:default}` y tests sobre H2 |
+| `dispensing-service` | Despacho/dispensación de medicamentos | [BenjaminSegovia/dispensing-service](https://github.com/BenjaminSegovia/dispensing-service) | 🔨 Estructura base + datasource con `${VAR:default}` y tests sobre H2 |
+| `notification-service` | Notificaciones del sistema | [BenjaminSegovia/notification-service](https://github.com/BenjaminSegovia/notification-service) | 🔨 Estructura base + datasource con `${VAR:default}` y tests sobre H2 |
 
-**Errores uniformes** (`ErrorResponse` `{timestamp, status, error, message, path, fields}`):
-`400` validación / `fields` / auto-eliminación · `401` sin token o credenciales malas ·
-`403` USER en ruta ADMIN · `404` username inexistente · `409` username duplicado.
-
-**JWT:** HS256 con claims `role` y `type` (`access` \| `refresh`). Access 15 min, refresh 7 días.
-El filtro solo acepta tokens `type=access` para llamar a la API.
-
-**Seguridad:** sesión `STATELESS`, CSRF desactivado, sin CORS configurado.
-Rutas abiertas: `POST /auth/register|login|refresh`, `/actuator/health|info`,
-`/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html`; el resto exige ADMIN o JWT.
+Todos comparten el mismo patrón: paquete `cl.duoc.<servicio>`, `application.yaml` con
+variables `${VAR:valor_por_defecto}` y Actuator exponiendo `health` e `info`.
 
 ---
 
-## 5. Configuración y ejecución
+## 3. Estructura de este repositorio
 
-- `application.yaml` **parametrizado** con `${VARIABLE:default}`:
-  `DB_URL` (default `localhost:5432/auth_db`), `DB_USERNAME`, `DB_PASSWORD`,
-  `JWT_SECRET`, `JWT_EXPIRATION_MS=900000`, `JWT_REFRESH_EXPIRATION_MS=604800000`.
-- `ddl-auto: update`, `open-in-view: false`, `show-sql: true`, **sin `server.port` → corre en 8080**.
-- Actuator expone `health` e `info`.
-- **Variables de entorno:** `.env.example` en la raíz (`.env` está en `.gitignore` y nunca se sube).
-- Tests con H2 (`src/test/resources/application.yaml`): no necesitan base de datos corriendo.
-- **Tests:** `./mvnw clean test` dentro de `auth-service/` → **24 tests, 0 fallos**
-  (`AuthApiIntegrationTest` 10, `SwaggerActuatorIntegrationTest` 5, `UsuarioJpaMappingTest` 5,
-  `JwtServiceTest` 3, contexto 1).
-- **Empaquetado:** `./mvnw clean package` → `target/auth-service-0.0.1-SNAPSHOT.jar`;
-  se verificó su arranque con `java -jar` (sin advertencias, health 200, register 201).
-- **Docker:** `docker-compose.yml` en la raíz con
-  - `auth-db`: `postgres:16-alpine`, puerto host **5433**, volumen persistente + healthcheck
-    (`pg_isready -U $$POSTGRES_USER`).
-  - `auth-service`: build desde `auth-service/Dockerfile` (multi-stage Maven + JRE 21),
-    mapeo **8081 (host) → 8080 (contenedor)**, espera el healthcheck de la BD antes de arrancar;
-    la URL de la BD usa el **nombre del servicio** (`auth-db`) dentro de la red de compose.
-- Las variables usan la sintaxis de compose `${VAR:-valor}` (defecto si no existe o está vacía).
+```
+auth-service/              ← nombre del repo en GitHub
+├── README.md              # este archivo (resumen general del proyecto)
+├── docker-compose.yml     # red, volúmenes y servicios (auth-db + auth-service)
+├── .env.example           # plantilla de variables de entorno
+├── .gitignore
+└── auth-service/          # el microservicio (ver su README.md)
+```
 
 ---
 
-## 6. Pendientes / bugs conocidos
+## 4. Requisitos y ejecución
 
-**Ya corregidos (por completitud):**
-- ~~`UserResponse` con `id`/`nombreCompleto` en `null`~~ → completado en `AuthService.assignRole`.
-- ~~`ChangePasswordRequest` sin endpoint~~ → existe `PUT /auth/password`.
-- ~~Swagger/Actuator respondían 401~~ → `permitAll` en `SecurityConfig`.
-- ~~`pom.xml` sin commitear y springdoc 2.5.x~~ → commiteado con **2.3.0**.
-- ~~Sin `.gitignore`~~ → creado en la raíz.
+- **Docker Desktop** con el demonio en marcha (para levantar BD + servicio con compose).
+- **Java 21** para correr en local con Maven.
 
-**Pendientes:**
-1. **Seguridad:** el `JWT_SECRET` por defecto está commiteado en `application.yaml` y en el compose;
-   sin CORS, sin rate limiting en login, sin revocación de refresh tokens (logout stateless).
-2. **Posible *race condition*** en el bootstrap del primer ADMIN (`count() == 0`).
-3. **Validación de username:** sin `trim()` ni minúsculas; un username de más de 255 caracteres
-   produce **500** (falta `@Size(max = 255)` en `RegisterRequest`).
-4. **`h2` con `<scope>runtime</scope>`** → debería ser `test`.
-5. **Infra:** sin Flyway/Liquibase (`ddl-auto: update`), sin `.dockerignore`, sin healthcheck del
-   servicio en el compose, sin CI, imagen `auth-service-v2` no reconstruida con el código nuevo.
-6. **`receta-service/`** sigue sin trackear → crear su **propio repositorio** (IE9: un repo por microservicio).
-7. **Postman (IE3):** la colección exportada se quitó del repo; las peticiones se ejecutan directamente
-   desde la aplicación. Si la pauta exige el archivo, exportarla a
-   `docs/postman/auth-service.postman_collection.json`.
-8. **Funcionalidad futura:** olvido de contraseña (requiere email) y blacklist/`jti` para logout real.
+```bash
+# 1. Variables de entorno (el .env real nunca se commitea)
+cp .env.example .env
+
+# 2. Levantar base de datos + auth-service
+docker compose up --build
+
+# 3. Servicio disponible en http://localhost:8081
+#    Swagger UI:  http://localhost:8081/swagger-ui.html
+#    Health:      http://localhost:8081/actuator/health
+```
+
+Para correr el servicio en local sin Docker:
+
+```bash
+cd auth-service
+./mvnw spring-boot:run     # mvnw.cmd spring-boot:run en Windows PowerShell
+```
+
+**Tests** (usan H2, no requieren PostgreSQL):
+
+```bash
+./mvnw clean test
+```
 
 ---
 
-## 7. Convenciones del repo
+## 5. Configuración
 
-- Commits **conventional commits en español**: `feat(auth): ...`, `fix(auth): ...`, `config(auth): ...`,
-  `test(auth): ...`, `docs(auth): ...`, `chore(env): ...`, `chore(docker): ...`.
-- Un **merge `--no-ff`** por tarea, con prefijo `merge(auth): ...`.
-- Javadoc y comentarios en español en clases y métodos públicos.
-- DTOs con Lombok `@Data` + `@Builder` / `@NoArgsConstructor` / `@AllArgsConstructor`.
-- Mensajes de error en español hacia el usuario final.
+- Cada servicio lee su configuración de variables de entorno con valor por defecto, por eso
+  corre en local sin tocar archivos:
+  - `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` → base de datos del servicio.
+  - `JWT_SECRET` (mínimo 32 caracteres), `JWT_EXPIRATION_MS`, `JWT_REFRESH_EXPIRATION_MS`
+    → solo `auth-service`.
+- `docker-compose.yml` define la red `recetaya-net`, volúmenes para cada base de datos y
+  healthchecks; dentro de la red los servicios se resuelven **por nombre**
+  (`jdbc:postgresql://auth-db:5432/auth_db`).
+- `.env` está en `.gitignore`; `.env.example` documenta cada variable.
+
+---
+
+## 6. Convenciones del proyecto
+
+- **Un repositorio por microservicio** (IE9): cada servicio se clona por separado y se
+  documenta con su propio `README.md`.
+- **Commits convencionales en español:** `feat(auth): ...`, `fix(auth): ...`,
+  `test(auth): ...`, `docs(auth): ...`, `chore(env): ...`.
+- Cada tarea en su rama `feature/*` y se fusiona a `develop` con **`git merge --no-ff`**;
+  `main` recibe el merge final.
+- Javadoc y mensajes de error en español; DTOs con Lombok (`@Data`, `@Builder`).
 - Cada feature se cierra completa: **DTO + controller + service + test**.
-- Al agregar un campo a un DTO, el test debe verificar que viene poblado (evita nulls silenciosos).
 
 ---
 
-## 8. Changelog breve
+## 7. Estado actual y pendientes
 
-| Fecha | Commit | Qué se hizo |
-|---|---|---|
-| 2026-10-06 | `267b445` | `chore(docker)`: sintaxis `${VAR:-default}` y DNS por nombre de servicio (`auth-db`). |
-| 2026-10-06 | `d2d1b47` | `docs(auth)`: **README del microservicio** (IE10) + corrección del puerto en `.env.example`. |
-| 2026-10-06 | `502ecca` | `docs(auth)`: se quitó la colección de Postman exportada (IE3 se corre desde la app). |
-| 2026-10-06 | `34a7a29` | `docs(auth)`: colección de Postman con casos de éxito y de error (IE3). |
-| 2026-10-06 | `1c5c4cd` | `docs(auth)`: README de contexto del proyecto (este archivo). |
-| 2026-10-06 | `f37bcbd` | `config(auth)`: arranque **sin advertencias** (`open-in-view: false`, sin dialecto explícito). |
-| 2026-10-06 | `fc3f491` | `test(auth)` + `docs(auth)`: mapeo JPA de `Usuario` documentado y testeado (IE6). |
-| 2026-10-06 | `16c66f4` | `docs(auth)` + `config(auth)`: documentación OpenAPI de los 10 endpoints (IE1). |
-| 2026-10-06 | `fdc4c5c` | `chore(env)`: variables de entorno `${VAR:default}` + `.env.example` + `.gitignore` (IE4). |
-| 2026-10-06 | `0b04f97` | `feat(auth)` + `test(auth)`: CRUD de usuarios, `/me`, `/password` y sus tests (IE5). |
-| 2026-10-06 | `82fe79b` | `fix(auth)`: `UserResponse` completo en el cambio de rol (IE2). |
-| 2026-10-06 | `dd720fd` | `feat(auth)` + `test(auth)`: Swagger y Actuator abiertos sin token (IE1/E8). |
-| 2026-10-05 | `cbeafc3` | `test(auth)`: pruebas de integración del flujo de autenticación y de `JwtService`. |
-| 2026-10-05 | `da2d685` | `feat(auth)`: rol asignado por el servidor, refresh token, logout y cambio de roles por ADMIN. |
-| 2026-10-05 | `5a6e07f` | `feat(auth)`: manejo uniforme de errores y filtro de autenticación JWT. |
-| 2026-10-05 | `9db62c1` | `config(auth)`: secret JWT de 32 bytes y conexión a PostgreSQL. |
-| 2026-10-05 | `49834e7` | `feat(auth)`: `SecurityConfig`, `AuthController` y `GlobalExceptionHandler`. |
-| 2026-10-05 | `78ddaa0` | `feat(auth)`: `AuthService` con excepciones personalizadas y DTOs. |
-| 2026-10-05 | — | Paquetes `dto`, `repository`, `model` (`Usuario`, `Role`) y estructura inicial. |
-| 2026-10-05 | `695a670` | `feat(init)`: inicializar microservicio `auth-service`. |
+**Hecho**
+
+- `auth-service` funcional: JWT, roles, CRUD de usuarios, Swagger y Actuator abiertos,
+  errores uniformes (`ErrorResponse`), 24 tests en verde y despliegue con Docker Compose.
+- Los cuatro servicios restantes tienen su repo propio con datasource parametrizado
+  (`${VAR:default}`), H2 para tests y Actuator.
+
+**Problema detectado y corregido (2026-10-07)**
+
+> Los commits `d30cfaa`, `3bc46d2`, `4d6b652` y `fd072ff` incorporaron `receta`,
+> `inventory`, `dispensing` y `notification` a **este** repositorio, borrando su `.git`
+> anidado, pese a que **cada microservicio tiene su propio repo en GitHub**. Eso dejaba
+> este repo (llamado `auth-service`) con cinco servicios y con la portada de GitHub
+> mostrando un README que no correspondía.
+>
+> - Se **eliminaron esos 4 commits de la historia** de `develop` (reescritura + force push).
+> - Respaldo local del histórico: rama **`backup/servicios-20261007`**.
+> - Los fixes que solo vivían ahí (datasource + H2 + actuator) **se subieron a cada repo
+>   propio** antes de borrarlos:
+>   `receta` → `906445f` · `inventory` → `4684c1a` · `dispensing` → `bbab28d` ·
+>   `notification` → `1ff121f`.
+
+**Pendiente**
+
+1. Desarrollar la lógica de `receta`, `inventory`, `dispensing` y `notification`.
+2. Definir un puerto por servicio y completar el `docker-compose.yml` compartido.
+3. Seguridad: secretos solo por variables de entorno, CORS y rate limiting en `auth-service`.
+4. Migraciones con Flyway/Liquibase en lugar de `ddl-auto: update` y CI con los tests.
